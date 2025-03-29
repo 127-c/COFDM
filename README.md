@@ -1,2 +1,2 @@
-# COFDM
-COFDM链路的实现
+# DAB
+DAB 链路的实现与仿真
