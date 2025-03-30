@@ -17,7 +17,6 @@ num_FIB_frame = 12;%FIB个数
 bitsrate_FIB = 96e3;%FIB数据率
 bits_per_CIF = 55296;%每CIF 包含Bits数
 bits_per_FIB = (bitsrate_FIB*frame_duration)/12; %每FIB 包含Bits数
-num_data_symbols = 96;%每帧符号数（OFDM符号）
 bits_per_symbol = 2400;%每符号bit数 2304 bits+96 bits 1200*2bits/子载波数
 
 
@@ -74,11 +73,52 @@ for i=1 :num_Subc*num_Loop
 
 end
 
+%-----OFDM调制-----------
+%现在将DQPSK符号分配到有效子载波上
+ifft_size = 2048;
+num_subc_total = 1536;
+valid_subc = 1:1200;%有效载波索引
+cp_length = 384; %保护间隔长度
 
+% 初始化频域符号矩阵（补零后的IFFT输入）
+ofdm_symbols_freq = zeros(ifft_size , num_Loop); %每行代表一个OFDM符号频域数据
 
-%数据符号生成
-zero_symbol = zeros(num_Subc,1);%生成 0 符号  
+%计算1536载波在2048里的位置，然后前后都补上0
+start_idx_ifft = (ifft_size - num_subc_total)/2 + 1 ;
+end_idx_ifft = start_idx_ifft + num_subc_total-1;
 
+%计算1200在1536载波里的位置
+start_idx_total = (num_subc_total - num_Subc)/2 + 1;
+end_idx_total = start_idx_total + num_Subc - 1;
+for i =1 :num_Loop
+    %循环处理每个OFDM符号
+    start_data = (i-1)*num_Subc + 1;%第i个OFDM符号的1载波
+    end_data = num_Subc*i;%第i个OFDM符号的第1200个载波
 
+    data_symbols = diff_symbols(start_data : end_data);%存储第i个OFDM符号的数据
 
+    % 在总子载波中居中填充有效数据（1536长度，中间1200为数据，其余补零）
+    %填充第i个OFDM符号的中间1200个载波的数据
+    total_subc_data = zeros(num_subc_total, 1 );%初始1536个数据
 
+    %填充中间1200到1536
+    total_subc_data(start_idx_total : end_idx_total) = data_symbols;
+
+    % 将1536数据补零到2048点（居中）
+    ofdm_symbols_freq(start_idx_ifft:end_idx_ifft,  i) = total_subc_data;
+end
+
+%-------IFFT与保护间隔（GI）添加
+tx_signal = [];
+for i = 1:num_Loop
+    %对每个OFDM进行IFFT
+    %频域 → 时域：将多个子载波的频域数据合并成一个时域波形
+    ifft_data = ifft(ofdm_symbols_freq(:,i) , ifft_size);
+    %取前1536个采样点
+    ifft_data_valid = ifft_data(1:num_subc_total);
+
+    %CP
+    cp = ifft_data_valid(end - cp_length : end);%取末尾384个点作为保护间隔
+    
+    tx_signal = [tx_signal ; cp ; ifft_data_valid];
+end
