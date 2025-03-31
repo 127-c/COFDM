@@ -52,6 +52,11 @@ SymQPSKtmptmp = bi2de(SymQPSKtmp,2,'left-msb');
 %00->pi/4 01->3*pi/4  10->-3*pi/4  11->-pi/4 
 delta_phase_table = [pi/4 , 3*pi/4 , -3*pi/4 , -pi/4];
 
+%--为每个子载波生成随机初始基准相位（0,pi/2,pi,3pi/2）
+initial_ref_phases = (randi([0, 3], num_Subc, 1)) * pi/2; 
+% 将输入数据重塑为 子载波 × 符号 矩阵
+data_matrix = reshape(SymQPSKtmptmp, num_Subc, num_Loop);
+
 initial_ref_phase = 0;%初始化基准相位
 current_ref_phase = initial_ref_phase;%前相位定义
 
@@ -69,24 +74,14 @@ for i=1 :num_Subc*num_Loop
 
     %当前相位 = 变化相位 + 前相位
     current_phase = delat_phase + current_ref_phase;
-switch SymQPSKtmptmp(i)
-    case 0 
-        amplitude = 0.8;
-    case 1 
-        amplitude = 1.0;
-    case 2 
-        amplitude = 1.2;
-    case 3 
-        amplitude = 1.4;
-end 
+
     % 将相位转为复数（如π/4 → (1+1i)/√2）
-    diff_symbols(i) =  amplitude *exp(1i *current_phase);
+    diff_symbols(i) =  exp(1i *current_phase);
     
     %状态传递
     current_ref_phase = current_phase;
 
 end
-
 %-----OFDM调制-----------
 %现在将DQPSK符号分配到有效子载波上
 ifft_size = 2048;
@@ -105,7 +100,7 @@ for i =1 :num_Loop
     start_data = (i-1)*num_Subc + 1;%第i个OFDM符号的1载波
     end_data = num_Subc*i;%第i个OFDM符号的第1536个载波
     amplitude_scaling = 1; % 示例缩放因子 
-    data_symbols = diff_symbols(start_data : end_data)* amplitude_scaling;;%存储第i个OFDM符号的数据
+    data_symbols = diff_symbols(start_data : end_data)* amplitude_scaling;%存储第i个OFDM符号的数据
 
     % 将1536数据补零到2048点（居中）
     ofdm_symbols_freq(start_idx_ifft:end_idx_ifft,  i) = data_symbols;
@@ -126,7 +121,9 @@ for i = 1:num_Loop
     ofdm_symbol_time = [cp; ifft_data_valid];
     tx_signal = [tx_signal; ofdm_symbol_time];
 end
-
+%------------ 添加高斯白噪声 ---------------
+SNR = 20; % 信噪比设为20dB（可根据需求调整）
+tx_signal = awgn(tx_signal, SNR, 'measured'); % 在时域信号中添加噪声
 % --- 生成零符号的时域信号（全零）---
 null_symbol_time = zeros(2656, 1);  % 零符号持续时间为2656T
 
@@ -224,25 +221,6 @@ symbol_idx = 10;
 % 接收端FFT后的频域数据 
 rx_freq_after_fft = rx_freq_symbols(symbol_idx, :).';
  
-% 解调时考虑幅度变化 
-rx_amplitude = abs(rx_freq_after_fft);
-rx_phase = angle(rx_freq_after_fft);
- 
-% 根据幅度恢复原始数据 
-% 示例：假设发送端使用了不同的幅度值 、
-
-recovered_data = zeros(size(rx_amplitude));
-for i = 1:length(rx_amplitude)
-    if rx_amplitude(i) > 1.2 
-        recovered_data(i) = 3; % 示例：最高幅度对应3 
-    elseif rx_amplitude(i) > 1.0 
-        recovered_data(i) = 2; % 示例：次高幅度对应2 
-    elseif rx_amplitude(i) > 0.8 
-        recovered_data(i) = 1; % 示例：中等幅度对应1 
-    else 
-        recovered_data(i) = 0; % 示例：最低幅度对应0 
-    end 
-end 
 %6.绘制图像
 
 
@@ -254,32 +232,36 @@ end
 % 选择一个OFDM符号进行分析 
 symbol_index = 10;
 freq_domain_tx = ofdm_symbols_freq(:, symbol_index);
-% 计算幅度并进行归一化 
-magnitude_tx = abs(freq_domain_tx) / max(abs(freq_domain_tx));
+% 计算幅度
+magnitude_tx = abs(freq_domain_tx) ;
  
 % 生成频率轴 
 n_fft = ifft_size;
 df = fs / n_fft;
 f = (-n_fft/2:n_fft/2 - 1) * df;
+
  
 % 绘制发射端频谱图 
 figure;
 plot(f, magnitude_tx);
 xlabel('频率 (Hz)');
-ylabel('归一化幅度');
+ylabel('幅度');
 title('IFFT之前的频谱图');
 grid on;
  
 % 在接收端添加FFT之后的频谱图绘制 
 % 选择一个OFDM符号进行分析 
 rx_freq_symbol = rx_freq_symbols(symbol_index, :);
-% 计算幅度并进行归一化 
-magnitude_rx = abs(rx_freq_symbol) / max(abs(rx_freq_symbol));
+% 计算幅度
+magnitude_rx = abs(rx_freq_symbol) ;
  
 % 绘制接收端频谱图 
 figure;
 plot(f, magnitude_rx);
 xlabel('频率 (Hz)');
-ylabel('归一化幅度');
+ylabel('幅度');
 title('FFT之后的频谱图');
 grid on;
+
+symbol = exp(1i * pi/2);
+fprintf('符号幅度：%f\n', abs(symbol)); % 应输出1.0
