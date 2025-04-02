@@ -130,56 +130,6 @@ null_symbol_time = zeros(2656, 1);  % 零符号持续时间为2656T
 %0符号和OFDM符号拼接
 tx_frame = [null_symbol_time; tx_signal];  % 总点数=2656+76×2552=196,608点
 
-%-----绘制时域图像
-t_total = (0:length(tx_frame) -1)/fs;%计算时间
-% 绘制实部和虚部分量
-figure;
-subplot(2,1,1);%图像两行1列的第一个
-plot(t_total, real(tx_frame));
-xlabel('时间 (秒)');
-ylabel('实部');
-title('OFDM时域信号（实部）');
-grid on;%网格线
-
-subplot(2,1,2);
-plot(t_total, imag(tx_frame));
-xlabel('时间 (秒)');
-ylabel('虚部');
-title('OFDM时域信号（虚部）');
-grid on;
-
-
-% 提取第10个OFDM符号的数据 
-symbol_index = 10; % 设置为10，提取第10个OFDM符号 
-symbols_length = cp_length + ifft_size; % 每个OFDM符号的长度（CP + IFFT长度）
- 
-% 计算第10个符号的起始和结束索引 
-start_idx = (symbol_index - 1) * symbols_length + 1;
-end_idx = symbol_index * symbols_length;
- 
-% 提取第10个符号的数据 
-tx_symbol_10 = tx_signal(start_idx:end_idx);
- 
-% 计算时间向量（仅针对第10个符号）
-t_symbol = (0:symbols_length - 1) / fs; % 时间轴 
- 
-% 绘制实部和虚部分量 
-figure;
-subplot(2,1,1); % 上半部分绘制实部 
-plot(t_symbol, real(tx_symbol_10));
-xlabel('时间 (秒)');
-ylabel('实部');
-title('第10个OFDM符号时域信号（实部）');
-grid on;
- 
-subplot(2,1,2); % 下半部分绘制虚部 
-plot(t_symbol, imag(tx_symbol_10));
-xlabel('时间 (秒)');
-ylabel('虚部');
-title('第10个OFDM符号时域信号（虚部）');
-grid on;
-
-
 %------------------接收端代码
 %直接使用基带信号进行IQ调制，然后对有效符号做FFT
 % --- 接收端处理（直接使用基带信号，无需下变频）---
@@ -221,47 +171,4 @@ symbol_idx = 10;
 % 接收端FFT后的频域数据 
 rx_freq_after_fft = rx_freq_symbols(symbol_idx, :).';
  
-%6.绘制图像
 
-
-
-
-
-
-% 在发射端添加IFFT之前的频谱图绘制 
-% 选择一个OFDM符号进行分析 
-symbol_index = 10;
-freq_domain_tx = ofdm_symbols_freq(:, symbol_index);
-% 计算幅度
-magnitude_tx = abs(freq_domain_tx) ;
- 
-% 生成频率轴 
-n_fft = ifft_size;
-df = fs / n_fft;
-f = (-n_fft/2:n_fft/2 - 1) * df;
-
- 
-% 绘制发射端频谱图 
-figure;
-plot(f, magnitude_tx);
-xlabel('频率 (Hz)');
-ylabel('幅度');
-title('IFFT之前的频谱图');
-grid on;
- 
-% 在接收端添加FFT之后的频谱图绘制 
-% 选择一个OFDM符号进行分析 
-rx_freq_symbol = rx_freq_symbols(symbol_index, :);
-% 计算幅度
-magnitude_rx = abs(rx_freq_symbol) ;
- 
-% 绘制接收端频谱图 
-figure;
-plot(f, magnitude_rx);
-xlabel('频率 (Hz)');
-ylabel('幅度');
-title('FFT之后的频谱图');
-grid on;
-
-symbol = exp(1i * pi/2);
-fprintf('符号幅度：%f\n', abs(symbol)); % 应输出1.0
